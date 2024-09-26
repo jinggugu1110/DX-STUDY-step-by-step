@@ -1,0 +1,73 @@
+ヘッダ**************************************************************************
+#pragma comment(lib,"dxgi.lib")
+#include<dxgi1_6.h>
+#include<cmath>
+//リソース-------------------------------------------------------------------
+IDXGISwapChain1*            SwapChain;
+ID3D11RenderTargetView*     BackBufferView;
+
+初期化**************************************************************************
+    //リソース
+    {
+        //スワップチェインをつくる(バックバッファを含んでいる)
+        {
+            //DXGIファクトリをつくる
+            IDXGIFactory4* dxgiFactory;
+            Hr = CreateDXGIFactory2(0, IID_PPV_ARGS(&dxgiFactory));
+            assert(SUCCEEDED(Hr));
+
+            //スワップチェインを記述してつくる
+            DXGI_SWAP_CHAIN_DESC1 desc = {};
+            desc.Width = ClientWidth;
+            desc.Height = ClientHeight;
+            desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+            desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+            desc.BufferCount = 2;
+            desc.SampleDesc.Count = 1;
+            desc.Scaling = DXGI_SCALING_NONE;
+            Hr = dxgiFactory->CreateSwapChainForHwnd(Device, HWnd, &desc, NULL, NULL, 
+                &SwapChain);
+            assert(SUCCEEDED(Hr));
+
+            //もういらない
+            dxgiFactory->Release();
+        }
+        //バックバッファのビューをつくる
+        {
+            //スワップチェインからバックバッファを取得
+            ID3D11Texture2D* backBuffer;
+            Hr = SwapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
+            assert(SUCCEEDED(Hr));
+
+            //バックバッファのビューをつくる
+            Hr = Device->CreateRenderTargetView(backBuffer, nullptr, &BackBufferView);
+            assert(SUCCEEDED(Hr));
+
+            //もういらない
+            backBuffer->Release();
+        }
+    }
+
+メインループ*********************************************************************
+        //バックバッファのクリア
+        {
+            //バックバッファをレンダーターゲットに設定
+            Context->OMSetRenderTargets(1, &BackBufferView, nullptr);
+            //レンダーターゲットビューを指定した色でクリア
+            static float radian = 0.0f;
+            float r = cos(radian) * 0.5f + 0.5f;
+            radian += 0.01f;
+            FLOAT clearColor[4] = { r, 0.25f, 0.5f, 1.0f };
+            Context->ClearRenderTargetView(BackBufferView, clearColor);
+        }
+
+        //バックバッファの表示
+        {
+            SwapChain->Present(1, 0);
+        }
+
+解放****************************************************************************
+        BackBufferView->Release();
+        SwapChain->Release();
+

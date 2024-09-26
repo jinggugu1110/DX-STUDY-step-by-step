@@ -1,0 +1,97 @@
+=====================================================================================
+画像ファイルを読み込んでテクスチャバッファビューをつくる
+
+プロジェクト
+stb_image.hを追加
+
+ヘッダ
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+ID3D11ShaderResourceView*   TextureBufferView1;
+ 
+リソース
+        //テクスチャバッファビュー１をつくる
+        {
+            //テクスチャデータをファイルから読み込む
+            const char* filename = "assets\\penguin1.png";
+            unsigned char* pixels = nullptr;
+            int texWidth;
+            int texHeight;
+            int bytePerPixel;
+            pixels = stbi_load(filename, &texWidth, &texHeight, &bytePerPixel, 4);
+            assert(pixels!=nullptr);
+            
+            //テクスチャバッファ記述
+            D3D11_TEXTURE2D_DESC desc = {};
+            desc.Width = texWidth;
+            desc.Height = texHeight;
+            desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+            desc.Usage = D3D11_USAGE_IMMUTABLE;
+            desc.CPUAccessFlags = 0;
+            desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            desc.MipLevels = 1;
+            desc.ArraySize = 1;
+            desc.SampleDesc.Count = 1;
+            desc.SampleDesc.Quality = 0;
+            desc.MiscFlags = 0;
+            //テクスチャデータ
+            D3D11_SUBRESOURCE_DATA data = {};
+            data.pSysMem = (void*)pixels;
+            data.SysMemPitch = texWidth * bytePerPixel;
+            data.SysMemSlicePitch = texWidth * texHeight * bytePerPixel;
+            //テクスチャバッファをつくる
+            ID3D11Texture2D* textureBuffer = nullptr;
+            Hr = Device->CreateTexture2D(&desc, &data, &textureBuffer);
+            assert(SUCCEEDED(Hr));
+
+            //テクスチャバッファのビューをつくる
+            Hr = Device->CreateShaderResourceView(textureBuffer, nullptr, &TextureBufferView1);
+            assert(SUCCEEDED(Hr));
+
+            //解放
+            textureBuffer->Release();
+            stbi_image_free(pixels);
+        }
+
+メインループ                                                         ↓ここだけ変更
+            Context->PSSetShaderResources(t0, 1, &TextureBufferView1);
+
+解放
+        TextureBufferView1->Release();
+
+
+=====================================================================================
+アルファ値にしたがって、透明にする
+
+ヘッダ
+ID3D11BlendState* BlendState;
+
+パイプライン
+        //ブレンドステート
+        {
+            D3D11_BLEND_DESC desc = {};
+            desc.AlphaToCoverageEnable = FALSE;
+            desc.IndependentBlendEnable = FALSE;
+            for (int i = 0; i < 1; i++) {
+                desc.RenderTarget[i].BlendEnable = TRUE;
+                desc.RenderTarget[i].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+                desc.RenderTarget[i].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+                desc.RenderTarget[i].BlendOp = D3D11_BLEND_OP_ADD;
+                desc.RenderTarget[i].SrcBlendAlpha = D3D11_BLEND_ONE;
+                desc.RenderTarget[i].DestBlendAlpha = D3D11_BLEND_ZERO;
+                desc.RenderTarget[i].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+                desc.RenderTarget[i].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+            }
+            Hr = Device->CreateBlendState(&desc, &BlendState);
+        }
+
+
+メインループ。クリアのところに追加
+            //ブレンドステートをセット
+            float blendFactor[4] = { 0,0,0,0 };
+            Context->OMSetBlendState(BlendState, blendFactor, 0xffffffff);
+
+解放
+        BlendState->Release();
+
